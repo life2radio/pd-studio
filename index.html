@@ -1603,7 +1603,7 @@ ${channel.tone || '편안하고 따뜻한 라디오 인터뷰 톤.'}
     stopSpeaking();
     if (stage === 'summary') setStage('chat');else if (stage === 'chat') setStage('setup');else if (stage === 'setup') setStage('landing');else if (stage === 'help') setStage('landing');
   };
-  const newSession = () => {
+  const _doStartSession = () => {
     stopSpeaking();
     setStage('setup');
     setChannel(null);
@@ -1617,19 +1617,26 @@ ${channel.tone || '편안하고 따뜻한 라디오 인터뷰 톤.'}
     setParsedQuestions([]);
     setCurrentQIdx(0);
   };
+  const newSession = () => {
+    if (!hasApiKey) {
+      setShowSettings(true);
+      return;
+    }
+    _doStartSession();
+  };
   const accent = channel?.accent || '#B85C38';
 
-  // GATE: API key entry first
-  if (!hasApiKey) {
-    return /*#__PURE__*/React.createElement(ApiKeyForm, {
-      onSave: () => setHasApiKey(true)
-    });
-  }
+  // API key form opens via "시작하기" or settings cog — NOT at app start
   if (showSettings) {
     return /*#__PURE__*/React.createElement(ApiKeyForm, {
       allowCancel: true,
       onCancel: () => setShowSettings(false),
-      onSave: () => setShowSettings(false)
+      onSave: () => {
+        const wasMissing = !hasApiKey;
+        setHasApiKey(true);
+        setShowSettings(false);
+        if (wasMissing) _doStartSession();
+      }
     });
   }
   return /*#__PURE__*/React.createElement("div", {
