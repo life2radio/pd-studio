@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PD 인터뷰 스튜디오</title>
+  <meta name="description" content="당신만의 AI PD가 한국어로 인터뷰합니다. 채널 톤에 맞는 영상 대본 초안까지." />
+  <meta name="theme-color" content="#B85C38" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PD 스튜디오" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Noto+Serif+KR:wght@500;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        theme: { extend: { fontFamily: { sans: ['Pretendard', 'Noto Sans KR', 'system-ui', 'sans-serif'] } } }
+      };
+    }
+  </script>
+
+  <style>
+    html, body, #root { height: 100%; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
+      background: #F5EFE3;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .display { font-family: 'Fraunces', 'Noto Serif KR', serif; font-optical-sizing: auto; }
+    .grain::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+      opacity: 0.06;
+    }
+    @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .rec-dot { animation: pulse-rec 1.2s ease-in-out infinite; }
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .anim-spin { animation: spin 1s linear infinite; }
+    textarea, input { font-family: inherit; }
+  </style>
+
+  <script crossorigin src="react.min.js"></script>
+  <script crossorigin src="react-dom.min.js"></script>
+
+  <style>
+    #loading-fallback {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; color: #5C4A3A; z-index: 1;
+    }
+    #loading-fallback .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #B85C38;
+      animation: pulse-rec 1.2s ease-in-out infinite;
+    }
+    #loading-fallback .label { font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; }
+    #root:not(:empty) ~ #loading-fallback { display: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="loading-fallback">
+    <div class="dot"></div>
+    <div class="label">PD 스튜디오 로딩 중…</div>
+  </div>
+
+  <script>
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
+const {
+  useState,
+  useEffect,
+  useRef
+} = React;
+
+/* ─── Storage keys ───────────────────────────────────────── */
+const KEY_API = 'pd-studio.api-key';
+const KEY_MODEL = 'pd-studio.model';
+const KEY_CHANNELS = 'pd-studio.channels';
+const KEY_SESSIONS = 'pd-studio.sessions';
+const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL_OPTIONS = [{
+  id: 'claude-sonnet-4-5-20250929',
+  name: 'Sonnet 4.5',
+  desc: '균형 (추천)'
+}, {
+  id: 'claude-haiku-4-5-20251001',
+  name: 'Haiku 4.5',
+  desc: '빠르고 저렴'
+}, {
+  id: 'claude-sonnet-4-20250514',
+  name: 'Sonnet 4',
+  desc: '안정적인 구버전'
+}];
+const ACCENT_PALETTE = ['#B85C38', '#00A86B', '#5B7C99', '#8B6F47', '#6B5B95', '#C8A951', '#D17A88', '#3E7B6F'];
+const SCRIPT_STYLES = [{
+  id: 'narrative',
+  name: '내러티브',
+  desc: '도입→본론→결론 (기본)'
+}, {
+  id: 'six-step',
+  name: '6단계 골든',
+  desc: '콜드오픈→공감→과학→솔루션→백신→클리프행어'
+}, {
+  id: 'tier-list',
+  name: 'Tier 리스트',
+  desc: '단계형/등급형, 짧고 명료'
+}, {
+  id: 'problem-solution',
+  name: '공감→반전→해답',
+  desc: '고민→데이터→해법'
+}];
+
+/* ─── Helpers ───────────────────────────────────────────── */
+const newId = prefix => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+const parseQuestions = text => text.split('\n').map(l => l.trim()).filter(Boolean).map(l => l.replace(/^[\d]+[\.\)、:]\s*/, '').replace(/^[-•·]\s*/, '')).filter(Boolean);
+const lsGet = (k, fallback = null) => {
+  try {
+    const v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const lsSet = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
+};
+const lsGetStr = k => {
+  try {
+    return localStorage.getItem(k) || '';
+  } catch {
+    return '';
+  }
+};
+const lsSetStr = (k, v) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
+};
+
+/* ─── API ────────────────────────────────────────────────── */
+async function callClaude(history, maxTokens = 1024) {
+  const apiKey = lsGetStr(KEY_API);
+  if (!apiKey) throw new Error('API 키가 설정되지 않았어요. 우상단 ⚙ 설정에서 등록해주세요.');
+  const model = lsGetStr(KEY_MODEL) || DEFAULT_MODEL;
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: history
+      })
+    });
+  } catch (e) {
+    throw new Error(`네트워크 실패: ${e.message || e}`);
+  }
+  const raw = await res.text().catch(() => '');
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('API 키가 잘못됐어요. 설정에서 다시 입력해주세요.');
+    if (res.status === 429) throw new Error('요청 한도 초과. 잠시 후 다시 시도하세요.');
+    if (res.status === 404) throw new Error(`모델을 찾을 수 없어요 (${model}). 설정에서 다른 모델을 선택해주세요.`);
+    throw new Error(`HTTP ${res.status} | ${raw.slice(0, 300)}`);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`응답 파싱 실패 | ${raw.slice(0, 200)}`);
+  }
+  if (!data || !Array.isArray(data.content)) throw new Error(`응답 형식 이상 | ${JSON.stringify(data).slice(0, 200)}`);
+  return data.content.map(c => c.text || '').join('').trim();
+}
+
+/* ─── Inline SVG Icons (Lucide paths) ────────────────────── */
+const _svg = {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: 24,
+  height: 24,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+};
+const Mic = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("rect", {
+  width: "6",
+  height: "11",
+  x: "9",
+  y: "2",
+  rx: "3"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M5 10v2a7 7 0 0 0 14 0v-2"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "12",
+  x2: "12",
+  y1: "19",
+  y2: "22"
+}));
+const MicOff = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("line", {
+  x1: "2",
+  x2: "22",
+  y1: "2",
+  y2: "22"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M5 10v2a7 7 0 0 0 12 5"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M15 9.34V5a3 3 0 0 0-5.68-1.33"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M9 9v3a3 3 0 0 0 5.12 2.12"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "12",
+  x2: "12",
+  y1: "19",
+  y2: "22"
+}));
+const Send = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "m21.854 2.147-10.94 10.939"
+}));
+const ArrowLeft = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "m12 19-7-7 7-7"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19 12H5"
+}));
+const Loader2 = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M21 12a9 9 0 1 1-6.219-8.56"
+}));
+const Radio = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4.93 19.07A10 10 0 0 1 1 12c0-2.66 1.05-5.21 2.93-7.07"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M7.76 16.24A6 6 0 0 1 6 12c0-1.6.63-3.13 1.76-4.24"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16.24 7.76A6 6 0 0 1 18 12a6 6 0 0 1-1.76 4.24"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19.07 4.93A10 10 0 0 1 23 12c0 2.66-1.05 5.21-2.93 7.07"
+}));
+const Sparkles = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M20 3v4"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M22 5h-4"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 17v2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M5 18H3"
+}));
+const Copy = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("rect", {
+  width: "14",
+  height: "14",
+  x: "8",
+  y: "8",
+  rx: "2",
+  ry: "2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+}));
+const Check = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M20 6 9 17l-5-5"
+}));
+const Volume2 = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16 9a5 5 0 0 1 0 6"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19.364 18.364a9 9 0 0 0 0-12.728"
+}));
+const VolumeX = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "22",
+  x2: "16",
+  y1: "9",
+  y2: "15"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "16",
+  x2: "22",
+  y1: "9",
+  y2: "15"
+}));
+const Pause = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("rect", {
+  x: "14",
+  y: "3",
+  width: "5",
+  height: "18",
+  rx: "1"
+}), /*#__PURE__*/React.createElement("rect", {
+  x: "5",
+  y: "3",
+  width: "5",
+  height: "18",
+  rx: "1"
+}));
+const Trash2 = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M3 6h18"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"
+}));
+const Clock = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "10"
+}), /*#__PURE__*/React.createElement("polyline", {
+  points: "12 6 12 12 16 14"
+}));
+const ChevronRight = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "m9 18 6-6-6-6"
+}));
+const Download = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+}), /*#__PURE__*/React.createElement("polyline", {
+  points: "7 10 12 15 17 10"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "12",
+  x2: "12",
+  y1: "15",
+  y2: "3"
+}));
+const Share2 = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("circle", {
+  cx: "18",
+  cy: "5",
+  r: "3"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "6",
+  cy: "12",
+  r: "3"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "18",
+  cy: "19",
+  r: "3"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "8.59",
+  y1: "13.51",
+  x2: "15.42",
+  y2: "17.49"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "15.41",
+  y1: "6.51",
+  x2: "8.59",
+  y2: "10.49"
+}));
+const ListOrdered = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("line", {
+  x1: "10",
+  y1: "6",
+  x2: "21",
+  y2: "6"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "10",
+  y1: "12",
+  x2: "21",
+  y2: "12"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "10",
+  y1: "18",
+  x2: "21",
+  y2: "18"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 6h1v4"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 10h2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"
+}));
+const BookOpen = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M12 7v14"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
+}));
+const Brain = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"
+}));
+const Plus = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M5 12h14"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M12 5v14"
+}));
+const Edit3 = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M12 20h9"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
+}));
+const X = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M18 6 6 18"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "m6 6 12 12"
+}));
+const Save = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M7 3v4a1 1 0 0 0 1 1h7"
+}));
+const Settings = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "3"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+}));
+const Key = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("circle", {
+  cx: "7.5",
+  cy: "15.5",
+  r: "5.5"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "m21 2-9.6 9.6"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "m15.5 7.5 3 3L22 7l-3-3"
+}));
+const ExternalLink = p => /*#__PURE__*/React.createElement("svg", _extends({}, _svg, p), /*#__PURE__*/React.createElement("path", {
+  d: "M15 3h6v6"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M10 14 21 3"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+}));
+
+/* ─── API Key Form ───────────────────────────────────────── */
+function ApiKeyForm({
+  onSave,
+  onCancel,
+  allowCancel
+}) {
+  const [key, setKey] = useState(lsGetStr(KEY_API));
+  const [model, setModel] = useState(lsGetStr(KEY_MODEL) || DEFAULT_MODEL);
+  const [show, setShow] = useState(false);
+  const save = () => {
+    const trimmed = key.trim();
+    if (!trimmed) {
+      alert('API 키를 입력해주세요.');
+      return;
+    }
+    if (!trimmed.startsWith('sk-ant-')) {
+      if (!confirm('Anthropic API 키는 보통 "sk-ant-"로 시작해요. 그래도 저장할까요?')) return;
+    }
+    lsSetStr(KEY_API, trimmed);
+    lsSetStr(KEY_MODEL, model);
+    onSave();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen w-full grain",
+    style: {
+      background: 'linear-gradient(180deg, #F5EFE3 0%, #EDE4D3 100%)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative z-10 max-w-xl mx-auto px-5 pt-10 pb-20"
+  }, allowCancel && /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    className: "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border mb-6",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.3)',
+      color: '#5C4A3A'
+    }
+  }, /*#__PURE__*/React.createElement(ArrowLeft, {
+    width: 14,
+    height: 14
+  }), " \uB4A4\uB85C"), /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4",
+    style: {
+      background: 'linear-gradient(135deg, #B85C38, #8B3D2A)'
+    }
+  }, /*#__PURE__*/React.createElement(Key, {
+    style: {
+      color: '#F5EFE3'
+    },
+    width: 26,
+    height: 26
+  })), /*#__PURE__*/React.createElement("h1", {
+    className: "display text-3xl font-bold mb-2",
+    style: {
+      color: '#2A1810'
+    }
+  }, "API \uD0A4 \uC124\uC815"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm leading-relaxed",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uC774 \uC571\uC740 Anthropic Claude AI\uB97C \uC9C1\uC811 \uD638\uCD9C\uD574\uC694.", /*#__PURE__*/React.createElement("br", null), "\uBCF8\uC778 API \uD0A4\uB294 \uC774 \uAE30\uAE30 \uBE0C\uB77C\uC6B0\uC800\uC5D0\uB9CC \uC800\uC7A5\uB429\uB2C8\uB2E4.")), /*#__PURE__*/React.createElement("div", {
+    className: "rounded-2xl p-5 mb-5",
+    style: {
+      background: 'rgba(255,255,255,0.6)',
+      border: '1px solid rgba(92, 74, 58, 0.15)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uD0A4 \uBC1C\uAE09 \uBC29\uBC95"), /*#__PURE__*/React.createElement("ol", {
+    className: "text-sm space-y-2 mb-4",
+    style: {
+      color: '#2A1810'
+    }
+  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", {
+    className: "display font-semibold mr-1.5",
+    style: {
+      color: '#B85C38'
+    }
+  }, "1."), /*#__PURE__*/React.createElement("a", {
+    href: "https://console.anthropic.com/settings/keys",
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "underline inline-flex items-center gap-1",
+    style: {
+      color: '#B85C38'
+    }
+  }, "console.anthropic.com ", /*#__PURE__*/React.createElement(ExternalLink, {
+    width: 12,
+    height: 12
+  })), " \uC811\uC18D \uD6C4 \uAC00\uC785 (\uBB34\uB8CC, \uC2E0\uADDC \uAC00\uC785 \uC2DC $5 \uD06C\uB808\uB527)"), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", {
+    className: "display font-semibold mr-1.5",
+    style: {
+      color: '#B85C38'
+    }
+  }, "2."), /*#__PURE__*/React.createElement("span", {
+    className: "font-mono text-xs px-1.5 py-0.5 rounded",
+    style: {
+      background: 'rgba(92, 74, 58, 0.1)'
+    }
+  }, "API Keys"), " \u2192 ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono text-xs px-1.5 py-0.5 rounded",
+    style: {
+      background: 'rgba(92, 74, 58, 0.1)'
+    }
+  }, "Create Key")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", {
+    className: "display font-semibold mr-1.5",
+    style: {
+      color: '#B85C38'
+    }
+  }, "3."), "\uD0A4 \uBCF5\uC0AC\uD574\uC11C \uC544\uB798\uC5D0 \uBD99\uC5EC\uB123\uAE30")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-relaxed pt-3 border-t",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.15)',
+      color: '#8B6F47'
+    }
+  }, "\uD83D\uDCA1 \uC778\uD130\uBDF0 1\uD68C \uC57D \u20A930~100 (Sonnet \uAE30\uC900). \uC2E0\uADDC \uAC00\uC785 $5\uB85C \uC218\uC2ED \uD68C \uAC00\uB2A5.")), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-2",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "API \uD0A4"), /*#__PURE__*/React.createElement("div", {
+    className: "relative mb-4"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: show ? 'text' : 'password',
+    value: key,
+    onChange: e => setKey(e.target.value),
+    placeholder: "sk-ant-api03-...",
+    className: "w-full p-3 pr-20 rounded-xl border-2 text-sm focus:outline-none font-mono",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: '#FFFEFB',
+      color: '#2A1810'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShow(s => !s),
+    className: "absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded",
+    style: {
+      color: '#5C4A3A',
+      background: 'rgba(92, 74, 58, 0.08)'
+    }
+  }, show ? '숨기기' : '보기')), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-2",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uBAA8\uB378"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 gap-2 mb-6"
+  }, MODEL_OPTIONS.map(m => /*#__PURE__*/React.createElement("button", {
+    key: m.id,
+    onClick: () => setModel(m.id),
+    className: "text-left p-3 rounded-xl border-2 transition-all",
+    style: {
+      borderColor: model === m.id ? '#B85C38' : 'rgba(92, 74, 58, 0.15)',
+      background: model === m.id ? '#FAF5EA' : '#FFFEFB'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm",
+    style: {
+      color: '#2A1810'
+    }
+  }, m.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-0.5",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, m.desc)), /*#__PURE__*/React.createElement("div", {
+    className: "w-3 h-3 rounded-full",
+    style: {
+      background: model === m.id ? '#B85C38' : 'transparent',
+      border: '2px solid #B85C38'
+    }
+  }))))), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    className: "w-full py-4 rounded-xl font-semibold text-base flex items-center justify-center gap-2",
+    style: {
+      background: '#B85C38',
+      color: '#F5EFE3'
+    }
+  }, /*#__PURE__*/React.createElement(Save, {
+    width: 18,
+    height: 18
+  }), "\uC800\uC7A5\uD558\uACE0 \uC2DC\uC791\uD558\uAE30"), /*#__PURE__*/React.createElement("div", {
+    className: "mt-6 text-center text-[11px]",
+    style: {
+      color: '#8B6F47'
+    }
+  }, "\uD83D\uDD12 \uD0A4\uB294 \uC678\uBD80\uB85C \uC804\uC1A1\uB418\uC9C0 \uC54A\uACE0 \uC774 \uAE30\uAE30 localStorage\uC5D0\uB9CC \uC800\uC7A5\uB429\uB2C8\uB2E4.")));
+}
+
+/* ─── Channel Form ───────────────────────────────────────── */
+function ChannelForm({
+  initial,
+  onSave,
+  onCancel
+}) {
+  const [name, setName] = useState(initial?.name || '');
+  const [sub, setSub] = useState(initial?.sub || '');
+  const [tone, setTone] = useState(initial?.tone || '');
+  const [accent, setAccent] = useState(initial?.accent || ACCENT_PALETTE[0]);
+  const [scriptStyle, setScriptStyle] = useState(initial?.scriptStyle || 'narrative');
+  const save = () => {
+    if (!name.trim()) {
+      alert('채널 이름을 입력해주세요.');
+      return;
+    }
+    onSave({
+      id: initial?.id,
+      name,
+      sub,
+      tone,
+      accent,
+      scriptStyle
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 p-4 rounded-xl fade-in",
+    style: {
+      background: '#FAF5EA',
+      border: `2px solid ${accent}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, initial ? '채널 편집' : '새 채널 추가'), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-1 mt-2",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uCC44\uB110 \uC774\uB984"), /*#__PURE__*/React.createElement("input", {
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "\uC608) \uC778\uC0DD2\uB9C9 \uB77C\uB514\uC624",
+    className: "w-full p-3 rounded-lg border text-sm focus:outline-none",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: '#FFFEFB',
+      color: '#2A1810'
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-1 mt-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uD55C \uC904 \uC124\uBA85 (\uC120\uD0DD)"), /*#__PURE__*/React.createElement("input", {
+    value: sub,
+    onChange: e => setSub(e.target.value),
+    placeholder: "\uC608) 50+ \uC2E0\uACBD\uACFC\uD559 \xB7 \uB530\uB73B\uD55C \uACF5\uAC10",
+    className: "w-full p-3 rounded-lg border text-sm focus:outline-none",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: '#FFFEFB',
+      color: '#2A1810'
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-1 mt-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uD1A4\xB7\uC9C0\uCE68 (PD\uAC00 \uC774 \uCC44\uB110\uC5D0\uC11C \uC5B4\uB5BB\uAC8C \uB9D0\uD558\uAE38 \uC6D0\uD558\uB098\uC694?)"), /*#__PURE__*/React.createElement("textarea", {
+    value: tone,
+    onChange: e => setTone(e.target.value),
+    placeholder: '예) 50대 이상 시청자 대상. 따뜻하지만 과학적 신뢰감. 절대 "주치의/처방/진단/환자" 같은 단어 사용 금지.',
+    rows: 4,
+    className: "w-full p-3 rounded-lg border text-sm focus:outline-none resize-none",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: '#FFFEFB',
+      color: '#2A1810'
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-2 mt-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uB300\uBCF8 \uAD6C\uC870"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, SCRIPT_STYLES.map(s => /*#__PURE__*/React.createElement("button", {
+    key: s.id,
+    onClick: () => setScriptStyle(s.id),
+    className: "p-2.5 rounded-lg border-2 text-left transition-colors",
+    style: {
+      borderColor: scriptStyle === s.id ? accent : 'rgba(92, 74, 58, 0.15)',
+      background: scriptStyle === s.id ? 'rgba(255,255,255,0.6)' : '#FFFEFB'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-xs",
+    style: {
+      color: '#2A1810'
+    }
+  }, s.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] mt-0.5 leading-snug",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, s.desc)))), /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs mb-2 mt-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uC0C9\uC0C1"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap"
+  }, ACCENT_PALETTE.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => setAccent(c),
+    className: "w-7 h-7 rounded-full transition-all",
+    style: {
+      background: c,
+      border: accent === c ? '3px solid #2A1810' : '2px solid rgba(255,255,255,0.5)'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-5"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    className: "flex-1 py-2.5 rounded-lg text-sm border",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.3)',
+      color: '#5C4A3A'
+    }
+  }, "\uCDE8\uC18C"), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    className: "flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5",
+    style: {
+      background: accent,
+      color: '#FAF5EA'
+    }
+  }, /*#__PURE__*/React.createElement(Save, {
+    width: 14,
+    height: 14
+  }), "\uC800\uC7A5")));
+}
+
+/* ─── Main App ───────────────────────────────────────────── */
+function App() {
+  const [hasApiKey, setHasApiKey] = useState(!!lsGetStr(KEY_API));
+  const [showSettings, setShowSettings] = useState(false);
+  const [stage, setStage] = useState('landing');
+  const [channels, setChannels] = useState(() => lsGet(KEY_CHANNELS, []));
+  const [editingChannel, setEditingChannel] = useState(null);
+  const [channel, setChannel] = useState(null);
+  const [topic, setTopic] = useState('');
+  const [questionMode, setQuestionMode] = useState('ai');
+  const [customQuestionsText, setCustomQuestionsText] = useState('');
+  const [parsedQuestions, setParsedQuestions] = useState([]);
+  const [currentQIdx, setCurrentQIdx] = useState(0);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+  const [muted, setMuted] = useState(false);
+  const [speakingIdx, setSpeakingIdx] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [sessions, setSessions] = useState(() => lsGet(KEY_SESSIONS, []));
+  const recognitionRef = useRef(null);
+  const voicesRef = useRef([]);
+  const scrollRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading]);
+
+  // Auto-save session
+  useEffect(() => {
+    if (!sessionId || !channel) return;
+    if (messages.length === 0 && !summary) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const now = Date.now();
+      const current = {
+        id: sessionId,
+        channelId: channel.id,
+        channelName: channel.name,
+        channelTone: channel.tone,
+        channelAccent: channel.accent,
+        channelScriptStyle: channel.scriptStyle,
+        topic,
+        messages,
+        summary,
+        questionMode,
+        parsedQuestions,
+        currentQIdx,
+        createdAt: sessions.find(s => s.id === sessionId)?.createdAt || now,
+        updatedAt: now
+      };
+      const others = sessions.filter(s => s.id !== sessionId);
+      const updated = [current, ...others].slice(0, 50);
+      setSessions(updated);
+      lsSet(KEY_SESSIONS, updated);
+    }, 600);
+    return () => saveTimerRef.current && clearTimeout(saveTimerRef.current);
+  }, [messages, summary, sessionId, channel, topic, questionMode, parsedQuestions, currentQIdx]);
+
+  // Speech recognition setup
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = 'ko-KR';
+    r.interimResults = false;
+    r.continuous = false;
+    r.onresult = e => {
+      const text = e.results[0][0].transcript;
+      setInput(prev => prev ? prev + ' ' + text : text);
+      setIsListening(false);
+      setVoiceError('');
+    };
+    r.onerror = e => {
+      setIsListening(false);
+      const map = {
+        'not-allowed': '마이크 권한이 차단됐어요. 브라우저 설정에서 허용해주세요.',
+        'service-not-allowed': '이 환경은 음성 인식을 지원하지 않아요.',
+        'no-speech': '음성이 감지되지 않았어요. 다시 시도해주세요.',
+        'aborted': '',
+        'audio-capture': '마이크를 찾을 수 없어요.',
+        'network': '네트워크 문제로 음성 인식 실패.'
+      };
+      const msg = map[e?.error];
+      setVoiceError(msg !== undefined ? msg : `음성 인식 오류: ${e?.error || 'unknown'}`);
+    };
+    r.onend = () => setIsListening(false);
+    recognitionRef.current = r;
+  }, []);
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const load = () => {
+      voicesRef.current = window.speechSynthesis.getVoices() || [];
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => window.speechSynthesis.cancel();
+  }, []);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role === 'pd' && !muted) {
+      const t = setTimeout(() => speakKorean(last.content, messages.length - 1), 250);
+      return () => clearTimeout(t);
+    }
+  }, [messages, muted]);
+  const pickKoreanVoice = () => {
+    const all = voicesRef.current || [];
+    const ko = all.filter(v => /^ko/i.test(v.lang));
+    if (ko.length === 0) return null;
+    return ko.find(v => /yuna|sora|female|여성/i.test(v.name)) || ko.find(v => /google/i.test(v.name)) || ko[0];
+  };
+  const speakKorean = (text, idx) => {
+    if (!('speechSynthesis' in window) || muted) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ko-KR';
+      const v = pickKoreanVoice();
+      if (v) u.voice = v;
+      u.rate = 0.97;
+      u.onstart = () => setSpeakingIdx(idx);
+      u.onend = () => setSpeakingIdx(null);
+      u.onerror = () => setSpeakingIdx(null);
+      window.speechSynthesis.speak(u);
+    } catch {
+      setSpeakingIdx(null);
+    }
+  };
+  const stopSpeaking = () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    setSpeakingIdx(null);
+  };
+  const toggleVoiceInput = () => {
+    setVoiceError('');
+    if (!recognitionRef.current) {
+      setVoiceError('이 환경은 음성 인식을 지원하지 않아요. 텍스트로 입력해주세요.');
+      return;
+    }
+    if (isListening) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      return;
+    }
+    stopSpeaking();
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch (e) {
+      setVoiceError(`음성 인식 시작 실패: ${e?.message || e}`);
+    }
+  };
+  const buildSystem = () => `당신은 "${channel.name}" 채널을 위한 따뜻하고 노련한 라디오 PD입니다. 사용자는 이 채널의 진행자이며, "${topic}"라는 주제로 영상을 만들려고 합니다.
+
+[채널 톤·지침]
+${channel.tone || '편안하고 따뜻한 라디오 인터뷰 톤.'}
+
+[당신의 역할]
+- 한 번에 오직 하나의 질문만 던집니다. 1~3문장, 짧고 자연스럽게.
+- 강의하지 마세요. 답을 알려주지 마세요. 당신은 듣는 사람입니다.
+- 진행자의 답변에서 감정·구체적 장면·놀라운 디테일을 포착해 그 지점을 더 깊이 파고드세요.
+- 첫 질문은 부드러운 도입(개인 경험·계기·감정)으로 시작하고, 점점 핵심으로 좁혀가세요.
+- 가끔 짧게(한 줄) 공감해도 되지만, 그 다음엔 반드시 새 질문으로 마무리.
+- 진행자가 "정리하자/끝/마무리" 같은 신호를 주면 따뜻한 마무리 한 마디만 남기고 더 묻지 마세요.
+- 절대 시청자에게 직접 말하는 톤(예: "여러분")으로 쓰지 마세요. 진행자에게 사적으로 묻는 톤이어야 합니다.`;
+
+  // CHANNEL CRUD
+  const persistChannels = next => {
+    setChannels(next);
+    lsSet(KEY_CHANNELS, next);
+  };
+  const saveChannel = data => {
+    let next;
+    if (data.id) {
+      next = channels.map(c => c.id === data.id ? {
+        ...c,
+        ...data
+      } : c);
+    } else {
+      next = [...channels, {
+        id: newId('ch'),
+        name: data.name.trim(),
+        sub: data.sub?.trim() || '',
+        tone: data.tone?.trim() || '',
+        accent: data.accent || ACCENT_PALETTE[channels.length % ACCENT_PALETTE.length],
+        scriptStyle: data.scriptStyle || 'narrative',
+        createdAt: Date.now()
+      }];
+    }
+    persistChannels(next);
+    setEditingChannel(null);
+  };
+  const deleteChannel = id => {
+    if (!confirm('이 채널을 삭제할까요? (관련 인터뷰 기록은 유지됩니다)')) return;
+    const next = channels.filter(c => c.id !== id);
+    persistChannels(next);
+    if (channel?.id === id) setChannel(null);
+  };
+
+  // INTERVIEW ACTIONS
+  const startInterview = async () => {
+    if (!channel || !topic.trim()) return;
+    if (questionMode === 'manual') {
+      const qs = parseQuestions(customQuestionsText);
+      if (qs.length === 0) {
+        alert('질문지에 질문이 하나도 없어요.');
+        return;
+      }
+      setParsedQuestions(qs);
+      setCurrentQIdx(0);
+      setSessionId(newId('s'));
+      setStage('chat');
+      setMessages([{
+        role: 'pd',
+        content: qs[0]
+      }]);
+      return;
+    }
+    setStage('chat');
+    setLoading(true);
+    setSessionId(newId('s'));
+    try {
+      const firstQ = await callClaude([{
+        role: 'user',
+        content: `${buildSystem()}\n\n---\n\n오늘의 주제는 "${topic}"입니다. 위 가이드라인에 따라 부드러운 첫 질문 하나만 던져주세요. 다른 말 없이 질문 한 줄만.`
+      }]);
+      setMessages([{
+        role: 'pd',
+        content: firstQ
+      }]);
+    } catch (e) {
+      setMessages([{
+        role: 'pd',
+        content: `[오류] ${e.message || e}`
+      }]);
+    }
+    setLoading(false);
+  };
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    stopSpeaking();
+    const userMsg = input.trim();
+    setInput('');
+    const next = [...messages, {
+      role: 'user',
+      content: userMsg
+    }];
+    setMessages(next);
+    if (questionMode === 'manual') {
+      const nextIdx = currentQIdx + 1;
+      if (nextIdx < parsedQuestions.length) {
+        setTimeout(() => {
+          setMessages([...next, {
+            role: 'pd',
+            content: parsedQuestions[nextIdx]
+          }]);
+          setCurrentQIdx(nextIdx);
+        }, 400);
+      } else {
+        setTimeout(() => {
+          setMessages([...next, {
+            role: 'pd',
+            content: '준비된 질문이 모두 끝났어요. 수고하셨습니다. 아래 "대본 초안 만들기" 버튼으로 정리해드릴게요.'
+          }]);
+        }, 400);
+      }
+      return;
+    }
+    setLoading(true);
+    const history = [{
+      role: 'user',
+      content: `${buildSystem()}\n\n---\n\n오늘의 주제는 "${topic}"입니다. 위 가이드라인에 따라 부드러운 첫 질문 하나만 던져주세요. 다른 말 없이 질문 한 줄만.`
+    }, ...next.map(m => ({
+      role: m.role === 'pd' ? 'assistant' : 'user',
+      content: m.content
+    }))];
+    try {
+      const reply = await callClaude(history);
+      setMessages([...next, {
+        role: 'pd',
+        content: reply
+      }]);
+    } catch (e) {
+      setMessages([...next, {
+        role: 'pd',
+        content: `[오류] ${e.message || e}`
+      }]);
+    }
+    setLoading(false);
+  };
+  const buildScriptSystem = () => {
+    const style = channel.scriptStyle || 'narrative';
+    const base = `당신은 "${channel.name}" 채널의 시니어 작가입니다. 아래 PD-진행자 인터뷰를 바탕으로 영상 대본 초안을 작성하세요.\n\n[채널 톤·지침]\n${channel.tone || '편안하고 따뜻한 라디오 톤.'}\n\n[규칙]\n- 진행자의 말투·감정·구체적 표현을 최대한 살리세요.\n- 각 섹션마다 핵심 메시지 한 줄을 굵게 표시.\n- 채널 톤·지침을 준수하세요.\n\n`;
+    const structures = {
+      'narrative': '[구조]\n1. 도입 (시청자 끌어당기는 한 문장 + 공감 포인트)\n2. 본론 (핵심 메시지 3가지를 자연스럽게 연결)\n3. 결론 (한 줄 정리 + 행동 유도)',
+      'six-step': '[6단계 골든 포뮬러]\n1. 콜드오픈 (3~5초, 강렬한 한 줄)\n2. 공감 (시청자가 "내 얘기다" 느끼는 도입)\n3. 과학/근거 (검증된 연구·메커니즘)\n4. 3단계 솔루션 (구체적 행동 가이드)\n5. 심리적 백신 (실패 시 일어날 일 + 회복법)\n6. 클리프행어 (다음 영상 예고)',
+      'tier-list': '[Tier 리스트 구조]\n- 도입 (왜 이 주제가 중요한지)\n- S/A/B/C 등급으로 항목 분류\n- 각 항목은 짧고 명료. 추상 개념은 행동+결과의 일상 비유로\n- 마무리 (오늘의 ONE thing)',
+      'problem-solution': '[3단계 구조]\n1. 공감 (시청자가 가진 흔한 고민·오해)\n2. 반전 (놀라운 데이터·연구 결과)\n3. 해답 (구체적 훈련법·해결 방향성)'
+    };
+    return base + (structures[style] || structures.narrative);
+  };
+  const generateScript = async () => {
+    if (messages.length < 2) {
+      alert('대화를 좀 더 진행한 뒤에 정리해주세요.');
+      return;
+    }
+    setStage('summary');
+    setLoading(true);
+    setSummary('');
+    const conv = messages.map(m => `${m.role === 'pd' ? 'PD' : '진행자'}: ${m.content}`).join('\n\n');
+    const sys = buildScriptSystem();
+    try {
+      const result = await callClaude([{
+        role: 'user',
+        content: `${sys}\n\n---\n\n주제: ${topic}\n\n[인터뷰 전문]\n${conv}\n\n위 가이드라인에 따라 영상 대본 초안을 작성해주세요.`
+      }], 2000);
+      setSummary(result);
+    } catch (e) {
+      setSummary(`[오류] ${e.message || e}`);
+    }
+    setLoading(false);
+  };
+  const buildMarkdown = () => {
+    const date = new Date().toLocaleDateString('ko-KR');
+    let md = `# ${topic || '인터뷰'}\n\n- **채널:** ${channel?.name || ''}\n- **날짜:** ${date}\n- **모드:** ${questionMode === 'manual' ? '질문지 모드' : 'AI PD 모드'}\n\n---\n\n## 인터뷰\n\n`;
+    messages.forEach(m => {
+      md += `**${m.role === 'pd' ? 'PD' : '진행자'}:** ${m.content}\n\n`;
+    });
+    if (summary) md += `---\n\n## 대본 초안\n\n${summary}\n`;
+    return md;
+  };
+  const downloadConversation = () => {
+    const md = buildMarkdown();
+    const date = new Date().toISOString().slice(0, 10);
+    const safeTopic = (topic || '인터뷰').replace(/[\/\\:*?"<>|]/g, '_').slice(0, 30);
+    const blob = new Blob([md], {
+      type: 'text/markdown;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${date}_${safeTopic}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const shareConversation = async () => {
+    const text = buildMarkdown();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `인터뷰: ${topic}`,
+          text
+        });
+        setShared(true);
+        setTimeout(() => setShared(false), 1500);
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShared(true);
+      setTimeout(() => setShared(false), 1500);
+    } catch {
+      alert('복사에 실패했어요.');
+    }
+  };
+  const copyAll = async () => {
+    const text = stage === 'summary' ? summary : buildMarkdown();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
+  const loadSession = s => {
+    stopSpeaking();
+    const ch = channels.find(c => c.id === s.channelId) || {
+      id: s.channelId || 'legacy',
+      name: s.channelName || '(삭제된 채널)',
+      sub: '',
+      tone: s.channelTone || '편안한 라디오 톤',
+      accent: s.channelAccent || '#8B6F47',
+      scriptStyle: s.channelScriptStyle || 'narrative'
+    };
+    setChannel(ch);
+    setTopic(s.topic || '');
+    setMessages(s.messages || []);
+    setSummary(s.summary || '');
+    setSessionId(s.id);
+    setQuestionMode(s.questionMode || 'ai');
+    setParsedQuestions(s.parsedQuestions || []);
+    setCurrentQIdx(s.currentQIdx || 0);
+    setStage(s.summary ? 'summary' : 'chat');
+  };
+  const deleteSession = (id, e) => {
+    e?.stopPropagation();
+    if (!confirm('이 인터뷰를 삭제할까요?')) return;
+    const updated = sessions.filter(s => s.id !== id);
+    setSessions(updated);
+    lsSet(KEY_SESSIONS, updated);
+  };
+  const formatDate = ts => {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    const isYest = d.toDateString() === yest.toDateString();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    if (sameDay) return `오늘 ${hh}:${mm}`;
+    if (isYest) return `어제 ${hh}:${mm}`;
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  };
+  const goBack = () => {
+    stopSpeaking();
+    if (stage === 'summary') setStage('chat');else if (stage === 'chat') setStage('setup');else if (stage === 'setup') setStage('landing');
+  };
+  const newSession = () => {
+    stopSpeaking();
+    setStage('setup');
+    setChannel(null);
+    setTopic('');
+    setMessages([]);
+    setInput('');
+    setSummary('');
+    setSessionId(null);
+    setQuestionMode('ai');
+    setCustomQuestionsText('');
+    setParsedQuestions([]);
+    setCurrentQIdx(0);
+  };
+  const accent = channel?.accent || '#B85C38';
+
+  // GATE: API key entry first
+  if (!hasApiKey) {
+    return /*#__PURE__*/React.createElement(ApiKeyForm, {
+      onSave: () => setHasApiKey(true)
+    });
+  }
+  if (showSettings) {
+    return /*#__PURE__*/React.createElement(ApiKeyForm, {
+      allowCancel: true,
+      onCancel: () => setShowSettings(false),
+      onSave: () => setShowSettings(false)
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen w-full grain",
+    style: {
+      background: 'linear-gradient(180deg, #F5EFE3 0%, #EDE4D3 100%)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative z-10 max-w-2xl mx-auto px-5 pt-6 pb-32"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-8"
+  }, stage === 'landing' ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-2 h-2 rounded-full rec-dot",
+    style: {
+      background: '#B85C38'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs tracking-[0.2em] uppercase",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "On Air \xB7 \uC778\uD130\uBDF0 \uC2A4\uD29C\uB514\uC624")) : /*#__PURE__*/React.createElement("button", {
+    onClick: goBack,
+    className: "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.3)',
+      color: '#5C4A3A'
+    }
+  }, /*#__PURE__*/React.createElement(ArrowLeft, {
+    width: 14,
+    height: 14
+  }), stage === 'setup' ? '처음으로' : stage === 'chat' ? '나가기' : '인터뷰로'), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, (stage === 'chat' || stage === 'summary') && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (!muted) stopSpeaking();
+      setMuted(m => !m);
+    },
+    className: "w-8 h-8 rounded-full flex items-center justify-center",
+    style: {
+      background: muted ? 'rgba(92, 74, 58, 0.1)' : accent,
+      color: muted ? '#5C4A3A' : '#FAF5EA'
+    }
+  }, muted ? /*#__PURE__*/React.createElement(VolumeX, {
+    width: 16,
+    height: 16
+  }) : /*#__PURE__*/React.createElement(Volume2, {
+    width: 16,
+    height: 16
+  })), stage === 'landing' && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowSettings(true),
+    className: "w-8 h-8 rounded-full flex items-center justify-center",
+    style: {
+      background: 'rgba(92, 74, 58, 0.08)',
+      color: '#5C4A3A'
+    }
+  }, /*#__PURE__*/React.createElement(Settings, {
+    width: 16,
+    height: 16
+  })))), stage === 'landing' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center pt-4 pb-10"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-6 text-xs",
+    style: {
+      background: 'rgba(184, 92, 56, 0.1)',
+      color: '#B85C38'
+    }
+  }, /*#__PURE__*/React.createElement(Sparkles, {
+    width: 12,
+    height: 12
+  }), " AI \uAE30\uBC18 \uCF58\uD150\uCE20 \uC778\uD130\uBDF0 \uB3C4\uAD6C"), /*#__PURE__*/React.createElement("h1", {
+    className: "display text-[44px] sm:text-5xl leading-[1.05] tracking-tight mb-4",
+    style: {
+      color: '#2A1810'
+    }
+  }, "\uB2F9\uC2E0\uB9CC\uC758 ", /*#__PURE__*/React.createElement("em", {
+    style: {
+      color: '#B85C38',
+      fontStyle: 'italic'
+    }
+  }, "PD"), "\uAC00", /*#__PURE__*/React.createElement("br", null), "\uC0DD\uACBC\uC2B5\uB2C8\uB2E4"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm leading-relaxed mb-8 px-2",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uCC44\uB110\uC744 \uB4F1\uB85D\uD558\uACE0 \uC8FC\uC81C\uB97C \uACE0\uB974\uBA74 PD\uAC00 \uD55C\uAD6D\uC5B4\uB85C \uC9C8\uBB38\uC744 \uB358\uC838\uC694.", /*#__PURE__*/React.createElement("br", null), "\uD3B8\uD558\uAC8C \uB2F5\uD558\uBA74 \uC601\uC0C1 \uB300\uBCF8 \uCD08\uC548\uAE4C\uC9C0 \uC815\uB9AC\uB429\uB2C8\uB2E4."), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-2.5"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: newSession,
+    className: "w-full py-4 rounded-xl font-semibold text-base flex items-center justify-center gap-2",
+    style: {
+      background: '#B85C38',
+      color: '#FAF5EA'
+    }
+  }, /*#__PURE__*/React.createElement(Radio, {
+    width: 20,
+    height: 20
+  }), channels.length === 0 ? '시작하기' : '인터뷰 시작하기'), sessions.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setStage('setup'),
+    className: "w-full py-3 rounded-xl text-sm flex items-center justify-center gap-2 border",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.3)',
+      color: '#5C4A3A'
+    }
+  }, /*#__PURE__*/React.createElement(BookOpen, {
+    width: 16,
+    height: 16
+  }), "\uC774\uC804 \uC778\uD130\uBDF0 \uC774\uC5B4\uAC00\uAE30 (", sessions.length, ")"))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-8 mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-4 text-center",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\u2014 \uC5B4\uB5BB\uAC8C \uB3C4\uC640\uB4DC\uB9AC\uB098\uC694 \u2014"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 sm:grid-cols-2 gap-3"
+  }, [{
+    Icon: Sparkles,
+    title: 'PD가 질문을 만들어줘요',
+    desc: '채널 톤에 맞춘 첫 질문부터, 답변에 따라 깊어지는 후속 질문까지.'
+  }, {
+    Icon: ListOrdered,
+    title: '내 질문지로도 진행',
+    desc: '미리 준비한 질문 리스트를 입력하면 PD가 순서대로 읽어줘요.'
+  }, {
+    Icon: Mic,
+    title: '음성으로 자연스럽게',
+    desc: 'PD가 한국어로 직접 읽어주고, 답변도 음성 입력 가능. 운전·산책 중에도.'
+  }, {
+    Icon: Brain,
+    title: '대본 초안 자동 생성',
+    desc: '채널별 구조(6단계 포뮬러, Tier 리스트 등)에 맞춰 정리.'
+  }].map((f, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "p-4 rounded-2xl",
+    style: {
+      background: 'rgba(255,255,255,0.5)',
+      border: '1px solid rgba(92, 74, 58, 0.12)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-9 h-9 rounded-lg flex items-center justify-center mb-3",
+    style: {
+      background: 'rgba(184, 92, 56, 0.12)',
+      color: '#B85C38'
+    }
+  }, /*#__PURE__*/React.createElement(f.Icon, {
+    width: 16,
+    height: 16
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "display font-semibold text-base mb-1",
+    style: {
+      color: '#2A1810'
+    }
+  }, f.title), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] leading-relaxed",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, f.desc))))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-4 text-center",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\u2014 \uC0AC\uC6A9 \uD750\uB984 \u2014"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, [['01', '내 채널 등록', '채널 이름과 톤을 입력. 몇 개든 추가 가능.'], ['02', '주제와 진행 방식 선택', 'AI가 즉석에서 만들지, 내 질문지로 진행할지.'], ['03', '인터뷰 진행', 'PD가 질문 → 음성/텍스트로 답변 → 다음 질문. 자동 저장.'], ['04', '대본 초안 받기', '채널 톤에 맞춰 정리. 다운로드와 공유 가능.']].map(([num, title, desc]) => /*#__PURE__*/React.createElement("div", {
+    key: num,
+    className: "flex gap-4 items-start"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "display flex-shrink-0 text-2xl font-semibold mt-0.5",
+    style: {
+      color: '#B85C38'
+    }
+  }, num), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm",
+    style: {
+      color: '#2A1810'
+    }
+  }, title), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] leading-relaxed mt-0.5",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, desc)))))), /*#__PURE__*/React.createElement("div", {
+    className: "text-center mt-12 text-[11px]",
+    style: {
+      color: '#8B6F47'
+    }
+  }, "\uBAA8\uB4E0 \uB370\uC774\uD130\uB294 \uC774 \uAE30\uAE30\uC5D0\uB9CC \uC800\uC7A5\uB429\uB2C8\uB2E4.")), stage === 'setup' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "display text-4xl leading-[1.1] tracking-tight mb-3",
+    style: {
+      color: '#2A1810'
+    }
+  }, "\uC624\uB298\uC740 \uC5B4\uB5A4 \uC774\uC57C\uAE30\uB97C", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("em", {
+    style: {
+      color: accent
+    }
+  }, "\uAEBC\uB0B4\uBCFC\uAE4C\uC694"), "?"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm leading-relaxed mb-8",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uCC44\uB110 \u2192 \uC8FC\uC81C \u2192 \uC9C4\uD589 \uBC29\uC2DD \u2192 \uC2DC\uC791."), /*#__PURE__*/React.createElement("div", {
+    className: "mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "01 \xB7 \uB0B4 \uCC44\uB110"), channels.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditingChannel('new'),
+    className: "text-xs flex items-center gap-1 px-2 py-1 rounded-full",
+    style: {
+      color: '#5C4A3A',
+      background: 'rgba(92, 74, 58, 0.08)'
+    }
+  }, /*#__PURE__*/React.createElement(Plus, {
+    width: 12,
+    height: 12
+  }), " \uC0C8 \uCC44\uB110")), channels.length === 0 && !editingChannel ? /*#__PURE__*/React.createElement("div", {
+    className: "p-6 rounded-2xl text-center",
+    style: {
+      background: 'rgba(255,255,255,0.5)',
+      border: '2px dashed rgba(92, 74, 58, 0.25)'
+    }
+  }, /*#__PURE__*/React.createElement(Radio, {
+    width: 28,
+    height: 28,
+    className: "mx-auto mb-2",
+    style: {
+      color: '#8B6F47'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm mb-1",
+    style: {
+      color: '#2A1810'
+    }
+  }, "\uC544\uC9C1 \uB4F1\uB85D\uB41C \uCC44\uB110\uC774 \uC5C6\uC5B4\uC694"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-4",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "PD\uAC00 \uB204\uAD6C\uB97C \uC704\uD574 \uC77C\uD560\uC9C0 \uC54C\uB824\uC8FC\uC138\uC694.", /*#__PURE__*/React.createElement("br", null), "\uC774\uB984\uACFC \uD1A4\uC744 \uC801\uC73C\uBA74 PD\uAC00 \uADF8 \uACB0\uB300\uB85C \uC9C8\uBB38\uD574\uC694."), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditingChannel('new'),
+    className: "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold",
+    style: {
+      background: '#B85C38',
+      color: '#FAF5EA'
+    }
+  }, /*#__PURE__*/React.createElement(Plus, {
+    width: 16,
+    height: 16
+  }), " \uCCAB \uCC44\uB110 \uCD94\uAC00\uD558\uAE30")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2.5"
+  }, channels.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    className: "relative"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChannel(c),
+    className: "w-full text-left p-4 rounded-xl border-2 transition-all",
+    style: {
+      borderColor: channel?.id === c.id ? c.accent : 'rgba(92, 74, 58, 0.15)',
+      background: channel?.id === c.id ? '#FAF5EA' : 'rgba(255,255,255,0.4)',
+      paddingRight: '80px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "display font-semibold text-lg",
+    style: {
+      color: '#2A1810'
+    }
+  }, c.name), c.sub && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mt-0.5 truncate",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, c.sub)), /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 w-3 h-3 rounded-full ml-2",
+    style: {
+      background: channel?.id === c.id ? c.accent : 'transparent',
+      border: `2px solid ${c.accent}`
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "absolute top-1/2 -translate-y-1/2 right-3 flex gap-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setEditingChannel(c);
+    },
+    className: "w-7 h-7 rounded-full flex items-center justify-center",
+    style: {
+      color: '#5C4A3A',
+      background: 'rgba(92, 74, 58, 0.08)'
+    }
+  }, /*#__PURE__*/React.createElement(Edit3, {
+    width: 14,
+    height: 14
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      deleteChannel(c.id);
+    },
+    className: "w-7 h-7 rounded-full flex items-center justify-center",
+    style: {
+      color: '#5C4A3A',
+      background: 'rgba(92, 74, 58, 0.08)'
+    }
+  }, /*#__PURE__*/React.createElement(Trash2, {
+    width: 14,
+    height: 14
+  })))))), editingChannel && /*#__PURE__*/React.createElement(ChannelForm, {
+    initial: editingChannel === 'new' ? null : editingChannel,
+    onSave: saveChannel,
+    onCancel: () => setEditingChannel(null)
+  })), channels.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "02 \xB7 \uC624\uB298\uC758 \uC8FC\uC81C"), /*#__PURE__*/React.createElement("textarea", {
+    value: topic,
+    onChange: e => setTopic(e.target.value),
+    placeholder: "\uC608) \uC138\uB300\uAC04 \uD2B8\uB77C\uC6B0\uB9C8\uC640 \uD6C4\uC131\uC720\uC804\uD559",
+    className: "w-full p-4 rounded-xl border-2 text-sm resize-none focus:outline-none",
+    rows: 3,
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: 'rgba(255,255,255,0.5)',
+      color: '#2A1810'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "mb-8"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase mb-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "03 \xB7 \uC9C4\uD589 \uBC29\uC2DD"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2.5 mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setQuestionMode('ai'),
+    className: "p-3.5 rounded-xl border-2 text-left transition-all",
+    style: {
+      borderColor: questionMode === 'ai' ? accent : 'rgba(92, 74, 58, 0.15)',
+      background: questionMode === 'ai' ? '#FAF5EA' : 'rgba(255,255,255,0.4)'
+    }
+  }, /*#__PURE__*/React.createElement(Sparkles, {
+    width: 16,
+    height: 16,
+    className: "mb-1.5",
+    style: {
+      color: accent
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm",
+    style: {
+      color: '#2A1810'
+    }
+  }, "AI PD \uBAA8\uB4DC"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-0.5 leading-snug",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "PD\uAC00 \uC989\uC11D\uC5D0\uC11C", /*#__PURE__*/React.createElement("br", null), "\uC9C8\uBB38\uC744 \uC0DD\uC131")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setQuestionMode('manual'),
+    className: "p-3.5 rounded-xl border-2 text-left transition-all",
+    style: {
+      borderColor: questionMode === 'manual' ? accent : 'rgba(92, 74, 58, 0.15)',
+      background: questionMode === 'manual' ? '#FAF5EA' : 'rgba(255,255,255,0.4)'
+    }
+  }, /*#__PURE__*/React.createElement(ListOrdered, {
+    width: 16,
+    height: 16,
+    className: "mb-1.5",
+    style: {
+      color: accent
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold text-sm",
+    style: {
+      color: '#2A1810'
+    }
+  }, "\uC9C8\uBB38\uC9C0 \uBAA8\uB4DC"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-0.5 leading-snug",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uB0B4\uAC00 \uC900\uBE44\uD55C \uC9C8\uBB38\uC744", /*#__PURE__*/React.createElement("br", null), "\uC21C\uC11C\uB300\uB85C"))), questionMode === 'manual' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: customQuestionsText,
+    onChange: e => setCustomQuestionsText(e.target.value),
+    placeholder: '질문을 줄바꿈으로 구분해서 입력해주세요.\n\n예)\n1. 어떻게 시작하게 됐나요?\n2. 가장 어려웠던 순간은?\n3. 만약 다시 한다면?',
+    rows: 8,
+    className: "w-full p-4 rounded-xl border-2 text-sm resize-none focus:outline-none",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)',
+      background: 'rgba(255,255,255,0.5)',
+      color: '#2A1810'
+    }
+  }), customQuestionsText.trim() && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 text-xs",
+    style: {
+      color: accent
+    }
+  }, "\u2713 \uC9C8\uBB38 ", parseQuestions(customQuestionsText).length, "\uAC1C \uC900\uBE44\uB428"))), /*#__PURE__*/React.createElement("button", {
+    onClick: startInterview,
+    disabled: !channel || !topic.trim() || loading || questionMode === 'manual' && parseQuestions(customQuestionsText).length === 0,
+    className: "w-full py-4 rounded-xl font-semibold text-base flex items-center justify-center gap-2 disabled:opacity-40",
+    style: {
+      background: channel?.accent || '#B85C38',
+      color: '#FAF5EA'
+    }
+  }, loading ? /*#__PURE__*/React.createElement(Loader2, {
+    width: 20,
+    height: 20,
+    className: "anim-spin"
+  }) : /*#__PURE__*/React.createElement(Radio, {
+    width: 20,
+    height: 20
+  }), "\uC778\uD130\uBDF0 \uC2DC\uC791")), sessions.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-12"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement(Clock, {
+    width: 14,
+    height: 14,
+    style: {
+      color: '#5C4A3A'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "\uC9C0\uB09C \uC778\uD130\uBDF0 \xB7 ", sessions.length)), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, sessions.map(s => {
+    const ch = channels.find(c => c.id === s.channelId);
+    const accentC = ch?.accent || s.channelAccent || '#8B6F47';
+    const msgCount = (s.messages || []).length;
+    return /*#__PURE__*/React.createElement("div", {
+      key: s.id,
+      onClick: () => loadSession(s),
+      className: "p-3.5 rounded-xl border cursor-pointer flex items-center gap-3",
+      style: {
+        borderColor: 'rgba(92, 74, 58, 0.15)',
+        background: 'rgba(255,255,255,0.5)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-shrink-0 w-1 h-10 rounded-full",
+      style: {
+        background: accentC
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 mb-0.5 flex-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] tracking-wider uppercase font-semibold",
+      style: {
+        color: accentC
+      }
+    }, s.channelName), s.questionMode === 'manual' && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] px-1.5 py-0.5 rounded",
+      style: {
+        background: 'rgba(92, 74, 58, 0.1)',
+        color: '#5C4A3A'
+      }
+    }, "\uC9C8\uBB38\uC9C0"), s.summary && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] px-1.5 py-0.5 rounded",
+      style: {
+        background: 'rgba(92, 74, 58, 0.1)',
+        color: '#5C4A3A'
+      }
+    }, "\uB300\uBCF8 \uC788\uC74C")), /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-medium truncate",
+      style: {
+        color: '#2A1810'
+      }
+    }, s.topic || '(제목 없음)'), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] mt-0.5",
+      style: {
+        color: '#8B6F47'
+      }
+    }, formatDate(s.updatedAt), " \xB7 \uBA54\uC2DC\uC9C0 ", msgCount, "\uAC1C")), /*#__PURE__*/React.createElement("button", {
+      onClick: e => deleteSession(s.id, e),
+      className: "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center opacity-50",
+      style: {
+        color: '#5C4A3A'
+      }
+    }, /*#__PURE__*/React.createElement(Trash2, {
+      width: 16,
+      height: 16
+    })), /*#__PURE__*/React.createElement(ChevronRight, {
+      width: 16,
+      height: 16,
+      style: {
+        color: '#8B6F47'
+      }
+    }));
+  })))), stage === 'chat' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mb-4 pb-4 border-b",
+    style: {
+      borderColor: 'rgba(92, 74, 58, 0.2)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs tracking-[0.15em] uppercase",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, channel?.name), questionMode === 'manual' && parsedQuestions.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] px-2 py-0.5 rounded-full",
+    style: {
+      background: 'rgba(92, 74, 58, 0.1)',
+      color: '#5C4A3A'
+    }
+  }, "\uC9C8\uBB38 ", Math.min(currentQIdx + 1, parsedQuestions.length), " / ", parsedQuestions.length)), /*#__PURE__*/React.createElement("div", {
+    className: "display text-xl",
+    style: {
+      color: '#2A1810'
+    }
+  }, topic)), /*#__PURE__*/React.createElement("div", {
+    ref: scrollRef,
+    className: "space-y-5 mb-6"
+  }, messages.map((m, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "fade-in"
+  }, m.role === 'pd' ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center display text-sm font-semibold",
+    style: {
+      background: accent,
+      color: '#FAF5EA'
+    }
+  }, "PD"), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 pt-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[15px] leading-relaxed whitespace-pre-wrap",
+    style: {
+      color: '#2A1810'
+    }
+  }, m.content), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (speakingIdx === i) stopSpeaking();else speakKorean(m.content, i);
+    },
+    className: "mt-2 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full",
+    style: {
+      background: speakingIdx === i ? accent : 'rgba(92, 74, 58, 0.08)',
+      color: speakingIdx === i ? '#FAF5EA' : '#5C4A3A'
+    }
+  }, speakingIdx === i ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Pause, {
+    width: 12,
+    height: 12
+  }), " \uBA48\uCD94\uAE30") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Volume2, {
+    width: 12,
+    height: 12
+  }), " \uB2E4\uC2DC \uB4E3\uAE30")))) : /*#__PURE__*/React.createElement("div", {
+    className: "pl-11"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "inline-block px-4 py-3 rounded-2xl rounded-tl-sm text-[15px] leading-relaxed whitespace-pre-wrap",
+    style: {
+      background: 'rgba(255,255,255,0.7)',
+      color: '#2A1810',
+      border: '1px solid rgba(92, 74, 58, 0.15)'
+    }
+  }, m.content)))), loading && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+    style: {
+      background: accent
+    }
+  }, /*#__PURE__*/React.createElement(Loader2, {
+    width: 16,
+    height: 16,
+    className: "anim-spin",
+    style: {
+      color: '#FAF5EA'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pt-2 text-sm italic",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, "PD\uAC00 \uB2E4\uC74C \uC9C8\uBB38\uC744 \uB5A0\uC62C\uB9AC\uB294 \uC911\u2026"))), messages.length >= 2 && !loading && /*#__PURE__*/React.createElement("button", {
+    onClick: generateScript,
+    className: "w-full mb-3 py-3 rounded-xl text-sm flex items-center justify-center gap-2 border-2",
+    style: {
+      borderColor: accent,
+      color: accent,
+      background: 'transparent'
+    }
+  }, /*#__PURE__*/React.createElement(Sparkles, {
+    width: 16,
+    height: 16
+  }), " \uC5EC\uAE30\uAE4C\uC9C0 \uC815\uB9AC\uD574\uC11C \uB300\uBCF8 \uCD08\uC548 \uB9CC\uB4E4\uAE30")), stage === 'summary' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "display text-3xl leading-tight mb-2",
+    style: {
+      color: '#2A1810'
+    }
+  }, "\uB300\uBCF8 \uCD08\uC548"), /*#__PURE__*/React.createElement("div", {
+    className: "text-xs mb-6",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, channel?.name, " \xB7 ", topic), loading ? /*#__PURE__*/React.createElement("div", {
+    className: "py-12 flex flex-col items-center gap-3",
+    style: {
+      color: '#5C4A3A'
+    }
+  }, /*#__PURE__*/React.createElement(Loader2, {
+    width: 24,
+    height: 24,
+    className: "anim-spin"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm"
+  }, "\uB300\uBCF8\uC744 \uC815\uB9AC\uD558\uACE0 \uC788\uC5B4\uC694\u2026")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "p-6 rounded-2xl text-[15px] leading-[1.75] whitespace-pre-wrap mb-4",
+    style: {
+      background: 'rgba(255,255,255,0.7)',
+      color: '#2A1810',
+      border: '1px solid rgba(92, 74, 58, 0.15)'
+    }
+  }, summary), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: copyAll,
+    className: "py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 border-2",
+    style: {
+      borderColor: accent,
+      color: accent
+    }
+  }, copied ? /*#__PURE__*/React.createElement(Check, {
+    width: 16,
+    height: 16
+  }) : /*#__PURE__*/React.createElement(Copy, {
+    width: 16,
+    height: 16
+  }), copied ? '복사됨' : '복사'), /*#__PURE__*/React.createElement("button", {
+    onClick: downloadConversation,
+    className: "py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 border-2",
+    style: {
+      borderColor: accent,
+      color: accent
+    }
+  }, /*#__PURE__*/React.createElement(Download, {
+    width: 16,
+    height: 16
+  }), " \uB2E4\uC6B4\uB85C\uB4DC"), /*#__PURE__*/React.createElement("button", {
+    onClick: shareConversation,
+    className: "py-3 rounded-xl text-sm flex items-center justify-center gap-1.5",
+    style: {
+      background: accent,
+      color: '#FAF5EA'
+    }
+  }, shared ? /*#__PURE__*/React.createElement(Check, {
+    width: 16,
+    height: 16
+  }) : /*#__PURE__*/React.createElement(Share2, {
+    width: 16,
+    height: 16
+  }), shared ? '공유됨' : '공유')), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-center mt-2",
+    style: {
+      color: '#8B6F47'
+    }
+  }, "\uB2E4\uC6B4\uB85C\uB4DC\uB294 \uC778\uD130\uBDF0 \uC804\uBB38 + \uB300\uBCF8\uC744 \uB9C8\uD06C\uB2E4\uC6B4(.md)\uC73C\uB85C \uC800\uC7A5\uD574\uC694")))), stage === 'chat' && /*#__PURE__*/React.createElement("div", {
+    className: "fixed bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-5",
+    style: {
+      background: 'linear-gradient(180deg, rgba(245,239,227,0) 0%, #EDE4D3 30%)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-2xl mx-auto"
+  }, voiceError && /*#__PURE__*/React.createElement("div", {
+    className: "mb-2 px-3 py-2 rounded-lg text-xs flex items-start gap-2",
+    style: {
+      background: 'rgba(184, 92, 56, 0.12)',
+      color: '#8B3D2A'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex-1"
+  }, voiceError), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setVoiceError(''),
+    className: "flex-shrink-0"
+  }, /*#__PURE__*/React.createElement(X, {
+    width: 12,
+    height: 12
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-end"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: toggleVoiceInput,
+    className: "flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center",
+    style: {
+      background: isListening ? accent : 'rgba(255,255,255,0.8)',
+      color: isListening ? '#FAF5EA' : '#5C4A3A',
+      border: `2px solid ${isListening ? accent : 'rgba(92, 74, 58, 0.2)'}`
+    }
+  }, isListening ? /*#__PURE__*/React.createElement(Mic, {
+    width: 20,
+    height: 20
+  }) : /*#__PURE__*/React.createElement(MicOff, {
+    width: 20,
+    height: 20
+  })), /*#__PURE__*/React.createElement("textarea", {
+    value: input,
+    onChange: e => setInput(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    },
+    placeholder: isListening ? '듣고 있어요…' : '편하게 말씀하세요',
+    rows: 1,
+    className: "flex-1 px-4 py-3 rounded-2xl text-[15px] resize-none focus:outline-none",
+    style: {
+      background: '#FAF5EA',
+      color: '#2A1810',
+      border: '2px solid rgba(92, 74, 58, 0.15)',
+      maxHeight: '120px'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: send,
+    disabled: !input.trim() || loading,
+    className: "flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-40",
+    style: {
+      background: accent,
+      color: '#FAF5EA'
+    }
+  }, /*#__PURE__*/React.createElement(Send, {
+    width: 20,
+    height: 20
+  }))))));
+}
+
+/* ─── Mount ──────────────────────────────────────────────── */
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
+</script>
+
+  <script>
+    // Service worker registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
