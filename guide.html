@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>API 키 발급 가이드 · PD 인터뷰 스튜디오</title>
+  <meta name="description" content="처음이세요? Anthropic API 키 발급, 5분 안에 끝납니다." />
+  <meta name="theme-color" content="#B85C38" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --cream: #F5EFE3;
+      --cream-deep: #EDE4D3;
+      --ink: #2A1810;
+      --soil: #5C4A3A;
+      --terra: #B85C38;
+      --terra-deep: #8B3D2A;
+      --warm-light: #FAF5EA;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(180deg, var(--cream) 0%, var(--cream-deep) 100%);
+      color: var(--ink);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .display { font-family: 'Fraunces', serif; }
+    a { color: inherit; text-decoration: none; }
+
+    .grain::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+      opacity: 0.06;
+    }
+
+    .container {
+      position: relative; z-index: 2;
+      max-width: 720px; margin: 0 auto;
+      padding: 24px 20px 80px;
+    }
+
+    /* TOP BAR */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 32px; font-size: 13px;
+    }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 999px;
+      border: 1px solid rgba(92,74,58,0.3); color: var(--soil);
+      transition: background 0.15s;
+    }
+    .back-link:hover, .back-link:active { background: rgba(255,255,255,0.6); }
+
+    /* HEADER */
+    .hero {
+      text-align: center; padding: 24px 0 32px;
+    }
+    .hero .label {
+      display: inline-block;
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--terra); padding: 4px 12px;
+      background: rgba(184,92,56,0.1); border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 40px; line-height: 1.1; font-weight: 700;
+      letter-spacing: -0.02em; margin-bottom: 12px;
+    }
+    .hero h1 em { color: var(--terra); font-style: italic; }
+    .hero p {
+      font-size: 14px; color: var(--soil); line-height: 1.7;
+    }
+
+    /* STEPS */
+    .step {
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(92,74,58,0.12);
+      border-radius: 20px;
+      padding: 24px 20px;
+      margin-bottom: 18px;
+    }
+    .step-head {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 12px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--terra); color: var(--warm-light);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Fraunces', serif; font-weight: 700; font-size: 17px;
+      box-shadow: 0 2px 8px rgba(184,92,56,0.3);
+    }
+    .step-num.check { background: #3E7B6F; }
+    .step h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 19px; line-height: 1.3;
+      flex: 1; min-width: 0;
+    }
+    .step p {
+      font-size: 14px; color: var(--soil); margin-bottom: 14px;
+      line-height: 1.65;
+    }
+    .step p code {
+      background: rgba(92,74,58,0.08);
+      padding: 2px 7px; border-radius: 4px;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 13px; color: var(--ink);
+    }
+    .step ul {
+      list-style: none; padding: 0;
+      font-size: 14px; color: var(--soil);
+    }
+    .step ul li {
+      padding-left: 20px; position: relative; line-height: 1.8;
+    }
+    .step ul li::before {
+      content: '•'; position: absolute; left: 6px; color: var(--terra);
+    }
+
+    /* SCREENSHOT */
+    .screenshot {
+      position: relative;
+      max-width: 380px;
+      margin: 8px auto 4px;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid rgba(92,74,58,0.2);
+      background: white;
+      box-shadow: 0 8px 24px rgba(60,40,20,0.12);
+    }
+    .screenshot img {
+      display: block; width: 100%; height: auto;
+    }
+    .badge {
+      position: absolute;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: var(--terra);
+      color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Fraunces', serif; font-weight: 700; font-size: 18px;
+      border: 3px solid white;
+      box-shadow: 0 0 0 3px var(--terra), 0 4px 12px rgba(0,0,0,0.3);
+      transform: translate(-50%, -50%);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .badge.big {
+      width: 50px; height: 50px; font-size: 22px;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--terra), 0 4px 12px rgba(0,0,0,0.3); }
+      50% { box-shadow: 0 0 0 8px rgba(184,92,56,0.3), 0 4px 12px rgba(0,0,0,0.3); }
+    }
+    .caption {
+      text-align: center; font-size: 12px; color: var(--soil);
+      margin-top: 10px; font-style: italic;
+    }
+
+    /* SPECIAL STEPS */
+    .step.warning {
+      background: rgba(184,92,56,0.08);
+      border-color: rgba(184,92,56,0.3);
+    }
+    .step.warning h2 { color: var(--terra-deep); }
+    .step.success {
+      background: rgba(62,123,111,0.08);
+      border-color: rgba(62,123,111,0.3);
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 22px; border-radius: 12px;
+      font-size: 15px; font-weight: 600;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--terra); color: var(--warm-light);
+      box-shadow: 0 4px 12px rgba(184,92,56,0.3);
+    }
+    .btn-outline {
+      border: 2px solid var(--terra); color: var(--terra); background: transparent;
+    }
+    .btn-success {
+      background: #3E7B6F; color: var(--warm-light);
+      box-shadow: 0 4px 12px rgba(62,123,111,0.3);
+    }
+    .btn-block { display: flex; width: 100%; }
+
+    /* FOOTER NOTE */
+    .footnote {
+      text-align: center; font-size: 12px; color: rgba(92,74,58,0.7);
+      margin-top: 32px;
+    }
+
+    /* RESPONSIVE */
+    @media (min-width: 640px) {
+      .container { padding: 32px 28px 100px; }
+      .hero h1 { font-size: 52px; }
+      .hero { padding: 40px 0 48px; }
+      .step { padding: 28px; }
+      .step h2 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body class="grain">
+  <div class="container">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <a class="back-link" href="index.html">← PD 스튜디오로</a>
+      <span style="color: var(--soil);">발급 가이드</span>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero">
+      <span class="label">처음 사용 가이드</span>
+      <h1 class="display">API 키 받기,<br /><em>5분이면 끝</em></h1>
+      <p>
+        Claude AI를 이 앱에서 쓰려면 본인 API 키가 필요해요.<br />
+        아래 6단계만 따라하시면 됩니다.
+      </p>
+    </div>
+
+    <!-- STEP 0: 가입 -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">0</span>
+        <h2 class="display">먼저 — Anthropic 계정 가입</h2>
+      </div>
+      <p>이미 계정 있으시면 1단계로 넘어가셔도 됩니다.</p>
+      <a class="btn btn-primary btn-block" href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" style="margin-bottom: 14px;">
+        🔗 console.anthropic.com 새 탭에서 열기
+      </a>
+      <ul>
+        <li>Google 계정 또는 이메일로 가입 (무료)</li>
+        <li>전화번호 인증 1번 (스팸 방지용, 한국 번호 OK)</li>
+        <li>신용카드 등록 안 해도 됨</li>
+      </ul>
+    </div>
+
+    <!-- STEP 1: 좌측 메뉴 -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">1</span>
+        <h2 class="display">좌측 메뉴에서 'API 키' 누르기</h2>
+      </div>
+      <p>로그인 후 좌측 사이드바에서 <code>API 키</code> 항목을 찾아 누르세요. 표시된 ① 위치예요.</p>
+      <div class="screenshot">
+        <img src="guide-step-menu.jpg" alt="Console 사이드바" />
+        <div class="badge" style="top: 36.5%; left: 11%;">1</div>
+      </div>
+    </div>
+
+    <!-- STEP 2: + 키 생성 -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">2</span>
+        <h2 class="display">'+ 키 생성' 검은 버튼 누르기</h2>
+      </div>
+      <p>오른쪽 'API 키 만들기' 박스 안에 검은 버튼이 보여요. 누르면 키 생성 팝업이 떠요.</p>
+      <div class="screenshot">
+        <img src="guide-step-menu.jpg" alt="API 키 만들기 버튼" />
+        <div class="badge" style="top: 40.5%; left: 87%;">2</div>
+      </div>
+      <div class="caption">같은 화면, 오른쪽 버튼이에요 ↑</div>
+    </div>
+
+    <!-- STEP 3: 키 이름 입력 -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">3</span>
+        <h2 class="display">키 이름 입력</h2>
+      </div>
+      <p>
+        팝업이 뜨면 워크스페이스는 <code>Default</code>로 자동 선택돼있어요. 그대로 두세요.<br /><br />
+        '키 이름 지정' 칸에 본인이 알아볼 이름 입력. 예: <code>pd-studio</code>
+      </p>
+      <div class="screenshot">
+        <img src="guide-step-modal.jpg" alt="키 이름 입력" />
+        <div class="badge" style="top: 53%; left: 50%;">3</div>
+      </div>
+    </div>
+
+    <!-- STEP 4: 추가 -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">4</span>
+        <h2 class="display">'추가' 검은 버튼 누르기</h2>
+      </div>
+      <p>이름 입력하면 '추가' 버튼이 검게 활성화돼요. 누르면 키가 만들어집니다.</p>
+      <div class="screenshot">
+        <img src="guide-step-modal.jpg" alt="추가 버튼" />
+        <div class="badge" style="top: 59.5%; left: 50%;">4</div>
+      </div>
+    </div>
+
+    <!-- STEP 5: ⚠️ 키 복사 -->
+    <div class="step warning">
+      <div class="step-head">
+        <span class="step-num">5</span>
+        <h2 class="display">⚠️ '키 복사' 무조건 누르기</h2>
+      </div>
+      <p>
+        <strong>이 화면 닫기 전에 무조건 키를 복사하세요.</strong><br />
+        한 번 닫으면 다시 못 봐요. 만약 놓쳤으면 처음부터 다시 만들어야 합니다.
+      </p>
+      <div class="screenshot">
+        <img src="guide-step-keysave.jpg" alt="키 복사 버튼" />
+        <div class="badge big" style="top: 53.5%; left: 80%;">5</div>
+      </div>
+      <p style="margin-top: 14px; font-size: 13px;">
+        💡 복사 후 잠깐 메모장이나 카톡 '나에게 보내기'에 임시로 붙여놓으셔도 좋아요.
+      </p>
+    </div>
+
+    <!-- STEP 6: PD 앱에 붙여넣기 -->
+    <div class="step success">
+      <div class="step-head">
+        <span class="step-num check">✓</span>
+        <h2 class="display">PD 스튜디오에 붙여넣기 → 끝!</h2>
+      </div>
+      <p>
+        복사한 키 (<code>sk-ant-...</code>로 시작)를 PD 스튜디오 시작 화면 → API 키 입력란에 붙여넣고 저장하면 끝입니다.
+      </p>
+      <a class="btn btn-success btn-block" href="index.html">
+        PD 스튜디오로 돌아가기 →
+      </a>
+    </div>
+
+    <!-- FAQ note -->
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">?</span>
+        <h2 class="display">막혔거나 안 되시면</h2>
+      </div>
+      <ul>
+        <li>잔액이 $0으로 표시되면, 좌측 메뉴 '결제'에서 카드 등록 (최소 $5만 충전해도 충분)</li>
+        <li>키가 작동 안 하면, 키 앞뒤 공백 없는지 확인 후 다시 붙여넣기</li>
+        <li>'sk-ant-'로 시작하지 않으면 잘못 복사한 거예요</li>
+        <li>그래도 안 되면 PD 스튜디오 첫 화면 → '자주 묻는 질문' 메뉴에서 추가 도움말 확인</li>
+      </ul>
+    </div>
+
+    <p class="footnote">
+      🔒 키는 본인 기기 브라우저에만 저장돼요. 외부로 안 새요.<br />
+      Made with care for new creators.
+    </p>
+
+  </div>
+</body>
+</html>
